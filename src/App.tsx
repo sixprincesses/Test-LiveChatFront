@@ -2,9 +2,9 @@ import { Client } from "@stomp/stompjs";
 import React, { useState } from "react";
 
 function App() {
-  const [server, setServer] = useState("");
-  const [msg, setMsg] = useState("");
-  const [to, setTo] = useState("");
+  const [server, setServer] = useState("70.12.114.70:8080/websocketserver");
+  const [msg, setMsg] = useState("Hi");
+  const [to, setTo] = useState("/sub/chat/enter");
 
   const client = new Client({
     debug: function (str) {
