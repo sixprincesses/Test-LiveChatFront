@@ -5,7 +5,7 @@ import { Client, Frame, Message, over } from "stompjs";
 interface inputs {
   id?: string;
   name?: string;
-  newChannel?: number;
+  newChannel?: string;
   message?: string;
 }
 
@@ -18,38 +18,35 @@ interface user {
 }
 
 interface channel {
-  id: number;
+  id: string;
   name: string;
   reference?: string;
   accessType?: string;
   channelType?: string;
-}
-
-interface tab {
-  id?: number | null;
-  name?: string | null;
+  updatedTime?: string;
 }
 
 interface chat {
-  id?: string;
-  senderId?: string;
-  receiverId?: string;
-  channelId?: string;
-  content?: string;
-  reference?: string;
-  messageType?: string;
-  createdTime?: string;
+  content: string;
+  channel: channel;
+  memberId: number;
+  nickname: string;
+  messageType: string;
+  createdTime: string;
 }
 
 interface payload1 {
-  channels: channel[];
-  status: string;
+  headers: object;
+  body: channel[];
+  statusCode: string;
+  statusCodeValue: number;
 }
 
 interface payload2 {
-  chats?: chat[];
-  chat?: chat;
-  status: string;
+  headers: object;
+  body: chat[];
+  statusCode: string;
+  statusCodeValue: number;
 }
 
 let stompClient: Client | null = null;
@@ -61,7 +58,7 @@ const ChatRoom = () => {
     connected: false,
   });
   const [channels, setChannels] = useState<channel[]>([]);
-  const [tab, setTab] = useState<tab | null>();
+  const [tab, setTab] = useState<channel | null>();
   const [chats, setChats] = useState<chat[]>([]);
 
   // 모니터링
@@ -71,13 +68,7 @@ const ChatRoom = () => {
 
   // 이벤트 핸들러
   const handleInputs = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name } = e.target;
-    let value;
-    if (name === "name" || name === "message") {
-      value = e.target.value;
-    } else {
-      value = parseInt(e.target.value);
-    }
+    const { name, value } = e.target;
     setInputs({
       ...inputs,
       [name]: value,
@@ -86,21 +77,13 @@ const ChatRoom = () => {
   const handleUserName = () => {
     setUser({
       ...user,
-      id: inputs?.id,
+      id: parseInt(typeof inputs.id === "string" ? inputs.id : ""),
       name: inputs?.name,
     });
   };
-  const handleChannel = (e: React.MouseEvent<HTMLElement>) => {
-    const { id, name } = e.target.dataset;
-    console.log(id, name);
-    stompClient?.unsubscribe("/user/" + tab?.id + "/channel");
-    stompClient?.unsubscribe("/server/chat/" + tab?.id);
-    stompClient?.subscribe("/user/" + id + "/channel", onMessageReceived);
-    stompClient?.subscribe("/server/chat/" + id, onMessageReceived);
-    setTab({ id, name });
-  };
 
   // 소켓 로직
+  // 메세지 송신 로직
   const sendMessage = () => {
     if (stompClient) {
       const chatMessage = {
@@ -114,42 +97,51 @@ const ChatRoom = () => {
       console.log("send", chatMessage, "to", "/server/messageTxt");
     }
   };
+  // 채널 생성, 구독 로직
   const subscribeNewChannel = () => {
     if (stompClient) {
       const chatMessage = {
-        senderId: user?.id,
-        receiverId: inputs?.newChannel,
-        status: "CHANNEL_IN",
+        senderId: user.id,
+        receiverId: inputs.newChannel,
       };
-      stompClient.send("/server/update", {}, JSON.stringify(chatMessage));
+      stompClient.send(
+        "/server/channel/create/simple",
+        {},
+        JSON.stringify(chatMessage)
+      );
     }
   };
+  // 채널 선택 로직
   const onMessageReceived = (payload: Message) => {
     const payloadData: payload2 = JSON.parse(payload.body);
-    console.log(payloadData);
-    switch (payloadData.status) {
-      case "CHANNEL_IN":
-        if (payloadData.chats) {
-          setChats(payloadData.chats);
-        }
-        break;
-      case "MESSAGE_TXT":
-        if (payloadData.chat) {
-          setChats((prev) =>
-            payloadData.chat ? [...prev, payloadData.chat] : [...prev]
-          );
-        }
-        break;
-    }
+    setChats(payloadData.body);
   };
-
+  const handleTab = (channel: channel) => {
+    setTab(tab?.id === channel.id ? null : channel);
+  };
+  const selectChannel = (e: React.MouseEvent<HTMLElement>) => {
+    const { channel } = JSON.parse(e.target.dataset.channel);
+    if (tab?.reference) {
+      stompClient?.unsubscribe("/server/channel/" + tab?.reference);
+    }
+    stompClient?.subscribe(
+      "/server/channel/" + channel.reference,
+      onMessageReceived
+    );
+    // 채팅 송신 채널 구독/구취 로직
+    handleTab(channel);
+  };
+  // 채널 받아오는 서버를 구독
   const onChannelReceived = (payload: Message) => {
     const payloadData: payload1 = JSON.parse(payload.body);
-    setChannels(payloadData.channels);
+    setChannels(payloadData.body);
   };
   const onConnected = () => {
     setUser({ ...user, connected: true });
-    stompClient?.subscribe("/server/channel/" + user.id, onChannelReceived);
+    stompClient?.subscribe(
+      "/server/channel/notification/" + user.id,
+      onChannelReceived
+    );
   };
   const onError = (err: Frame | string) => {
     console.log(err);
@@ -211,9 +203,8 @@ const ChatRoom = () => {
             <ul>
               {channels?.map((channel, index) => (
                 <li
-                  onClick={handleChannel}
-                  data-id={channel.id}
-                  data-name={channel.name}
+                  onClick={selectChannel}
+                  data-channel={JSON.stringify(channel)}
                   className={`channel ${
                     tab?.name === channel.name && "active"
                   }`}
@@ -235,15 +226,15 @@ const ChatRoom = () => {
           <ul className="chat-messages">
             {chats.map((chat, index) => (
               <li
-                className={`message ${chat.senderId === user.id && "self"}`}
+                className={`message ${chat.memberId === user.id && "self"}`}
                 key={index}
               >
-                {chat.senderId !== user.id && (
-                  <div className="avatar">{chat.senderId}</div>
+                {chat.memberId !== user.id && (
+                  <div className="avatar">{chat.nickname}</div>
                 )}
                 <div className="message-data">{chat.content}</div>
-                {chat.senderId === user.id && (
-                  <div className="avatar self">{chat.senderId}</div>
+                {chat.memberId === user.id && (
+                  <div className="avatar self">{chat.nickname}</div>
                 )}
               </li>
             ))}
