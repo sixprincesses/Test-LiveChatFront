@@ -2,52 +2,12 @@
   "headers": {},
   "body": [
     {
-      "content": "아 입실하기 안눌렀다",
-      "channel": {
-        "id": 1,
-        "name": "김태규님과 김단이님의 채팅방",
-        "reference": "ABC",
-        "accessType": "PUBLIC",
-        "channelType": "SINGLE",
-        "createdTime": null,
-        "updatedTime": null
-      },
-      "memberId": 123,
-      "nickname": "김태규",
-      "messageType": null,
-      "createdTime": "2024-01-23T15:48:01.611546"
-    },
-    {
-      "content": "사유서 제출하세요!",
-      "channel": {
-        "id": 1,
-        "name": "김태규님과 김단이님의 채팅방",
-        "reference": "ABC",
-        "accessType": "PUBLIC",
-        "channelType": "SINGLE",
-        "createdTime": null,
-        "updatedTime": null
-      },
-      "memberId": 456,
-      "nickname": "김단이",
-      "messageType": null,
-      "createdTime": "2024-01-23T15:48:01.611546"
-    },
-    {
-      "content": "이닦고 올게요!",
-      "channel": {
-        "id": 1,
-        "name": "김태규님과 김단이님의 채팅방",
-        "reference": "ABC",
-        "accessType": "PUBLIC",
-        "channelType": "SINGLE",
-        "createdTime": null,
-        "updatedTime": null
-      },
-      "memberId": 123,
-      "nickname": "김태규",
-      "messageType": null,
-      "createdTime": "2024-01-23T15:48:01.611546"
+      "name": "8생활관 6공주",
+      "reference": "communitiy",
+      "accessType": "PUBLIC",
+      "channelType": "MULTIPLE",
+      "createdTime": "2024-01-24T10:12:35.43683",
+      "updatedTime": "2024-01-24T10:12:35.43683"
     }
   ],
   "statusCode": "OK",

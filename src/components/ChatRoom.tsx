@@ -18,17 +18,17 @@ interface user {
 }
 
 interface channel {
-  id: string;
   name: string;
-  reference?: string;
+  reference: string;
   accessType?: string;
   channelType?: string;
+  createdTime?: string;
   updatedTime?: string;
 }
 
 interface chat {
   content: string;
-  channel: channel;
+  reference: string;
   memberId: number;
   nickname: string;
   messageType: string;
@@ -42,9 +42,13 @@ interface payload1 {
   statusCodeValue: number;
 }
 
+interface messageDtoList {
+  messageDtoList: chat[];
+}
+
 interface payload2 {
   headers: object;
-  body: chat[];
+  body: messageDtoList;
   statusCode: string;
   statusCodeValue: number;
 }
@@ -52,7 +56,7 @@ interface payload2 {
 let stompClient: Client | null = null;
 const ChatRoom = () => {
   // 상수
-  const [inputs, setInputs] = useState<inputs>({ id: "", name: "" });
+  const [inputs, setInputs] = useState<inputs>({ id: "97531677", name: "123" });
   const [user, setUser] = useState<user>({
     loggedin: false,
     connected: false,
@@ -87,14 +91,15 @@ const ChatRoom = () => {
   const sendMessage = () => {
     if (stompClient) {
       const chatMessage = {
-        senderId: user?.id,
-        channelId: tab?.id,
-        message: inputs?.message,
-        createdTime: new Date(),
-        status: "MESSAGE_TXT",
+        content: inputs.message,
+        senderId: user.id,
+        nickname: user.name,
       };
-      stompClient.send("/server/messageTxt", {}, JSON.stringify(chatMessage));
-      console.log("send", chatMessage, "to", "/server/messageTxt");
+      stompClient.send(
+        "/server/message/" + tab?.reference,
+        {},
+        JSON.stringify(chatMessage)
+      );
     }
   };
   // 채널 생성, 구독 로직
@@ -114,13 +119,13 @@ const ChatRoom = () => {
   // 채널 선택 로직
   const onMessageReceived = (payload: Message) => {
     const payloadData: payload2 = JSON.parse(payload.body);
-    setChats(payloadData.body);
+    setChats((prev) => [...prev, ...payloadData.body.messageDtoList]);
   };
   const handleTab = (channel: channel) => {
-    setTab(tab?.id === channel.id ? null : channel);
+    setTab(tab?.reference === channel.reference ? null : channel);
   };
   const selectChannel = (e: React.MouseEvent<HTMLElement>) => {
-    const { channel } = JSON.parse(e.target.dataset.channel);
+    const channel = JSON.parse(e.target.dataset.channel);
     if (tab?.reference) {
       stompClient?.unsubscribe("/server/channel/" + tab?.reference);
     }
@@ -139,7 +144,7 @@ const ChatRoom = () => {
   const onConnected = () => {
     setUser({ ...user, connected: true });
     stompClient?.subscribe(
-      "/server/channel/notification/" + user.id,
+      "/server/channel/connection/" + user.id,
       onChannelReceived
     );
   };
