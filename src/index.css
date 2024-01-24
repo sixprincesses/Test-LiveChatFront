@@ -108,6 +108,7 @@ ul {
 }
 
 .chat-content {
+  height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -118,6 +119,10 @@ ul {
   border: 3px solid green;
   border-radius: 10px;
   padding: 10px;
+  overflow-y: scroll;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .message {

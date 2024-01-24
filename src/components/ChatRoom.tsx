@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import axios, { AxiosError, AxiosResponse, RawAxiosRequestConfig } from "axios";
+import React, { useEffect, useState } from "react";
 import SockJS from "sockjs-client/dist/sockjs";
 import { Client, Frame, Message, over } from "stompjs";
 
@@ -42,13 +43,13 @@ interface payload1 {
   statusCodeValue: number;
 }
 
-interface messageDtoList {
-  messageDtoList: chat[];
+interface messageResponseDtoList {
+  messageResponseDtoList: chat[];
 }
 
 interface payload2 {
   headers: object;
-  body: messageDtoList;
+  body: messageResponseDtoList;
   statusCode: string;
   statusCodeValue: number;
 }
@@ -56,7 +57,12 @@ interface payload2 {
 let stompClient: Client | null = null;
 const ChatRoom = () => {
   // 상수
-  const [inputs, setInputs] = useState<inputs>({ id: "97531677", name: "123" });
+  const [inputs, setInputs] = useState<inputs>({
+    id: "97531677",
+    name: "123",
+    message: "",
+    newChannel: "",
+  });
   const [user, setUser] = useState<user>({
     loggedin: false,
     connected: false,
@@ -66,9 +72,9 @@ const ChatRoom = () => {
   const [chats, setChats] = useState<chat[]>([]);
 
   // 모니터링
-  // useEffect(() => {
-  //   console.log(inputs, user, channels, chats, tab);
-  // }, [inputs, user, channels, chats, tab]);
+  useEffect(() => {
+    console.log(chats, tab);
+  }, [chats, tab]);
 
   // 이벤트 핸들러
   const handleInputs = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,21 +85,42 @@ const ChatRoom = () => {
     });
   };
   const handleUserName = () => {
-    setUser({
-      ...user,
-      id: parseInt(typeof inputs.id === "string" ? inputs.id : ""),
-      name: inputs?.name,
-    });
+    const registUser = async (params: RawAxiosRequestConfig) => {
+      axios
+        .request(params)
+        .then((res: AxiosResponse) => {
+          console.log(res);
+          setUser({
+            ...user,
+            id: parseInt(typeof inputs.id === "string" ? inputs.id : ""),
+            name: inputs?.name,
+          });
+        })
+        .catch((err: AxiosError) => {
+          console.error(err);
+        });
+    };
+    const params: RawAxiosRequestConfig = {
+      method: "post",
+      url: `http://70.12.114.70:8080/member`,
+      data: {
+        memberId: parseInt(typeof inputs.id === "string" ? inputs.id : ""),
+        nickname: inputs.name,
+      },
+    };
+    registUser(params);
   };
 
   // 소켓 로직
   // 메세지 송신 로직
-  const sendMessage = () => {
+  const sendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (stompClient) {
       const chatMessage = {
         content: inputs.message,
-        senderId: user.id,
-        nickname: user.name,
+        memberId: user.id,
+        messageType: null,
+        reference: tab?.reference,
       };
       stompClient.send(
         "/server/message/" + tab?.reference,
@@ -101,6 +128,7 @@ const ChatRoom = () => {
         JSON.stringify(chatMessage)
       );
     }
+    setInputs({ ...inputs, message: "" });
   };
   // 채널 생성, 구독 로직
   const subscribeNewChannel = () => {
@@ -119,22 +147,41 @@ const ChatRoom = () => {
   // 채널 선택 로직
   const onMessageReceived = (payload: Message) => {
     const payloadData: payload2 = JSON.parse(payload.body);
-    setChats((prev) => [...prev, ...payloadData.body.messageDtoList]);
-  };
-  const handleTab = (channel: channel) => {
-    setTab(tab?.reference === channel.reference ? null : channel);
+    setChats((prev) => [...prev, ...payloadData.body.messageResponseDtoList]);
   };
   const selectChannel = (e: React.MouseEvent<HTMLElement>) => {
     const channel = JSON.parse(e.target.dataset.channel);
-    if (tab?.reference) {
-      stompClient?.unsubscribe("/server/channel/" + tab?.reference);
-    }
-    stompClient?.subscribe(
-      "/server/channel/" + channel.reference,
-      onMessageReceived
-    );
-    // 채팅 송신 채널 구독/구취 로직
-    handleTab(channel);
+    const getChats = async (params: type) => {
+      axios
+        .request(params)
+        .then((res: AxiosResponse) => {
+          console.log(res);
+          setChats(res.data.messageResponseDtoList);
+        })
+        .catch((err: AxiosError) => {
+          console.error(err);
+        });
+    };
+    const params: RawAxiosRequestConfig = {
+      method: "get",
+      url: `http://70.12.114.70:8080/channel/${channel.reference}`,
+    };
+    getChats(params)
+      .then(() => {
+        if (tab?.reference) {
+          stompClient?.unsubscribe(`${user.id}`);
+        }
+        if (!(tab?.reference === channel.reference)) {
+          stompClient?.subscribe(
+            "/server/channel/" + channel.reference,
+            onMessageReceived,
+            { id: user.id }
+          );
+        }
+      })
+      .then(() => {
+        setTab(tab?.reference === channel.reference ? null : channel);
+      });
   };
   // 채널 받아오는 서버를 구독
   const onChannelReceived = (payload: Message) => {
@@ -244,19 +291,19 @@ const ChatRoom = () => {
               </li>
             ))}
           </ul>
-          <div className="send-message input-box">
+          <form className="send-message input-box" onSubmit={sendMessage}>
             <input
               type="text"
               className="input-message"
               placeholder="메세지를 입력하세요."
               name="message"
-              value={inputs?.message}
+              value={inputs.message}
               onChange={handleInputs}
             />
-            <button type="button" className="send-button" onClick={sendMessage}>
+            <button type="submit" className="send-button">
               보내기
             </button>
-          </div>
+          </form>
         </div>
       ) : (
         <div className="unselected">채팅방을 선택해 주세요.</div>
